@@ -8,6 +8,7 @@ import java.io.IOException;
 
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.CompressFormat;
+import android.view.Surface;
 
 public class JniConnector {
 
@@ -33,6 +34,11 @@ public class JniConnector {
 	public static native boolean openFile(String path);
 	public static native void renderFrame();
 	public static native void closeFile();
+	public static native int[] getVideoResolution();
+	public static native void setSurface(Surface surface);
+	public static native boolean setup(int width, int height);
+	public static native void play();
+	public static native void stop();
 	
 	static {
 		System.loadLibrary("avutil-52");

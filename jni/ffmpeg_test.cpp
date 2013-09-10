@@ -1,8 +1,12 @@
 #include <stddef.h>
+#include <stdio.h>
+#include <pthread.h>
 #include <wchar.h>
 #include <jni.h>
 #include <android/log.h>
 #include <android/bitmap.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -18,17 +22,35 @@ extern "C" {
 #define LOGV(LOG_TAG, ...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 #define LOGE(LOG_TAG, ...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-static AVFrame*	pFrame;
-static AVFrame*	pFrameARGB;
+JavaVM* jvm;
+ANativeWindow*	window;
+int width;
+int height;
 
-static AVFormatContext* pFormatContext;
-static AVCodecContext*	pCodecContext;
-static int videoStreamIndex;
-static AVCodec*	pCodec;
-static bool fileWasOpened = false;
+AVFrame*	pDecodedFrame;
+AVFrame*	pFrameRGBA;
 
+AVFormatContext* pFormatContext = NULL;
+AVCodecContext*	pCodecContext = NULL;
+int videoStreamIndex;
+AVCodec*	pCodec = NULL;
+bool fileWasOpened = false;
+SwsContext*	swsContext = NULL;
 static jobject bitmap;
+void*	buffer = NULL;
+int stop;
 
+jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
+	jvm = pVm;
+	LOGD(LOG_TAG, "JNI_OnLoad: JavaVM is %p", jvm);
+
+	JNIEnv* env;
+	if (pVm->GetEnv((void **)&env, JNI_VERSION_1_6) != JNI_OK) {
+		 return -1;
+	}
+
+	return JNI_VERSION_1_6;
+}
 
 void init_ffmpeg()
 {
@@ -115,10 +137,10 @@ JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNI
 		return false;
 	}
 
-	pFrame = avcodec_alloc_frame();
-	pFrameARGB = avcodec_alloc_frame();
+	pDecodedFrame = avcodec_alloc_frame();
+	pFrameRGBA = avcodec_alloc_frame();
 
-	if(NULL == pFrame || NULL == pFrameARGB)
+	if(NULL == pDecodedFrame || NULL == pFrameRGBA)
 	{
 		LOGE(LOG_TAG, "Can't allocate frames.");
 		avcodec_close(pCodecContext);
@@ -137,39 +159,30 @@ JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_renderFrame(JNIE
 	int frameFinished;
 	AVPacket packet;
 	SwsContext* pSwsContext;
-	pSwsContext = sws_getContext(pCodecContext->width, pCodecContext->height, pCodecContext->pix_fmt, pCodecContext->width, pCodecContext->height, PIX_FMT_ARGB, SWS_BILINEAR, NULL, NULL, NULL);
+	pSwsContext = sws_getContext(pCodecContext->width, pCodecContext->height, pCodecContext->pix_fmt, pCodecContext->width, pCodecContext->height, PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
 
 	void* buffer;
 	bitmap = createBitmap(env, pCodecContext->width, pCodecContext->height);
 	if (AndroidBitmap_lockPixels(env, bitmap, &buffer) < 0) return;
 
-	avpicture_fill((AVPicture*)pFrameARGB, (uint8_t*)buffer, PIX_FMT_ARGB, pCodecContext->width, pCodecContext->height);
+	avpicture_fill((AVPicture*)pFrameRGBA, (uint8_t*)buffer, PIX_FMT_RGBA, pCodecContext->width, pCodecContext->height);
 
 	int i=0;
 	while(av_read_frame(pFormatContext, &packet) >= 0)
 	{
 		if(packet.stream_index == videoStreamIndex)
 		{
-			avcodec_decode_video2(pCodecContext, pFrame, &frameFinished, &packet);
+			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
 
 			if(frameFinished)
 			{
-				sws_scale(pSwsContext, (uint8_t const* const*)pFrame->data, pFrame->linesize, 0, pCodecContext->height, pFrameARGB->data, pFrameARGB->linesize);
+				sws_scale(pSwsContext, (uint8_t const* const*)pDecodedFrame->data, pDecodedFrame->linesize, 0, pCodecContext->height, pFrameRGBA->data, pFrameRGBA->linesize);
 			}
 		}
 
 	}
 
-//	void* p = pFrameARGB->data;
-//	uint8_t* pp = (uint8_t*)p;
-//	for(uint8_t i = 0 ; i < 16 ; i++)
-//	{
-//		//LOGD(LOG_TAG, "%p = %d", pFrameARGB->data + i, *(pFrameARGB->data + i));
-//		LOGD(LOG_TAG, "%p = %d", pp+i, *(pp+i));
-//	}
-
-	SaveFrame(env, obj, bitmap, pFrameARGB->width, pFrameARGB->height, 99);
-	//av_free_packet(&packet);
+	SaveFrame(env, obj, bitmap, pFrameRGBA->width, pFrameRGBA->height, 99);
 	AndroidBitmap_unlockPixels(env, bitmap);
 }
 
@@ -177,14 +190,175 @@ JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_closeFile(JNIEnv
 {
 	LOGD(LOG_TAG,"closeFile");
 	if(!fileWasOpened) return;
-	av_free(pFrameARGB);
+	av_free(pFrameRGBA);
 	LOGD(LOG_TAG,"pFrameARGB released");
-	av_free(pFrame);
+	av_free(pDecodedFrame);
 	LOGD(LOG_TAG,"pFrame released");
 	avcodec_close(pCodecContext);
 	LOGD(LOG_TAG,"pCodecContext released");
 	avformat_close_input(&pFormatContext);
 	LOGD(LOG_TAG,"pFormatContext released");
+}
+
+JNIEXPORT jintArray JNICALL Java_com_example_ffmpegtest_JniConnector_getVideoResolution(JNIEnv* env, jobject obj)
+{
+	jintArray lres;
+	if(NULL == pCodecContext) return NULL;
+
+	lres = env->NewIntArray(2);
+	if(NULL == lres)
+	{
+		LOGE(LOG_TAG,"Cannot allocate memory for video resolution array.");
+		return NULL;
+	}
+
+	jint resArray[2];
+	resArray[0] = pCodecContext->width;
+	resArray[1] = pCodecContext->height;
+	env->SetIntArrayRegion(lres,0, 2, resArray);
+	return lres;
+}
+
+JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_setSurface(JNIEnv* env,jobject obj, jobject surface)
+{
+	if(NULL != surface)
+	{
+		window = ANativeWindow_fromSurface(env, surface);
+		ANativeWindow_setBuffersGeometry(window, 0, 0, WINDOW_FORMAT_RGBA_8888);
+		LOGD(LOG_TAG, "SetSurface OK");
+	}
+	else
+	{
+		LOGD(LOG_TAG, "SetSurface FAILED");
+		ANativeWindow_release(window);
+	}
+}
+
+JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_setup(JNIEnv* env, jobject obj, jint _width, jint _height)
+{
+	width = _width;
+	height = _height;
+
+	LOGD(LOG_TAG, "New W:H = %d : %d", width, height);
+	bitmap = createBitmap(env, width, height);
+	if(AndroidBitmap_lockPixels(env, bitmap, &buffer) < 0) return false;
+
+	swsContext = sws_getContext (
+		        pCodecContext->width,
+		        pCodecContext->height,
+		        pCodecContext->pix_fmt,
+		        width,
+		        height,
+		        AV_PIX_FMT_RGBA,
+		        SWS_BILINEAR,
+		        NULL,
+		        NULL,
+		        NULL);
+
+	avpicture_fill((AVPicture *)pFrameRGBA, (uint8_t*)buffer, AV_PIX_FMT_RGBA, width, height);
+	return true;
+}
+
+void finish(JNIEnv* env)
+{
+	AndroidBitmap_unlockPixels(env, bitmap);
+	av_free(buffer);
+	av_free(pFrameRGBA);
+	av_free(pDecodedFrame);
+	avcodec_close(pCodecContext);
+	avformat_close_input(&pFormatContext);
+}
+
+void processBuffer(uint8_t* buffer, int width, int height)
+{
+	int length = width * height * 4 / 2;
+	for(int i = 0 ; i < length/4 ; i++)
+	{
+		//*(buffer+i) = (uint8_t) rand() ;
+		*(buffer + i*4 + 3) = 0;
+	}
+}
+
+void *decodeAndRender(void*)
+{
+	LOGD(LOG_TAG, "Render thread enter.");
+	LOGD(LOG_TAG, "Render thread: JavaVM is %p", jvm);
+	JNIEnv* env = NULL;
+	jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+
+
+	ANativeWindow_Buffer windowBuffer;
+	AVPacket packet;
+	int i=0;
+	int frameFinished;
+	int lineCnt;
+
+
+	LOGD(LOG_TAG, "Enter render thread");
+
+	while(av_read_frame(pFormatContext, &packet) >= 0 && !stop)
+	{
+		if(packet.stream_index == videoStreamIndex)
+		{
+			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
+
+			if(frameFinished)
+			{
+				//LOGD(LOG_TAG, "Got new frame");
+				sws_scale
+				(
+					swsContext,
+					(uint8_t const * const *)pDecodedFrame->data,
+					pDecodedFrame->linesize,
+					0,
+					pCodecContext->height,
+					pFrameRGBA->data,
+					pFrameRGBA->linesize
+				);
+
+				//LOGD(LOG_TAG, "frame scaled");
+
+				if(ANativeWindow_lock(window, &windowBuffer, NULL) < 0)
+				{
+					LOGE(LOG_TAG, "Can't lock window buffer");
+				}
+				else
+				{
+					//LOGD(LOG_TAG, "copy buffer %d:%d:%d", width, height, width*height*4);
+					//LOGD(LOG_TAG, "window buffer: %d:%d:%d", windowBuffer.width, windowBuffer.height, windowBuffer.stride);
+
+					processBuffer((uint8_t*)buffer, width, height);
+
+					memcpy(windowBuffer.bits, buffer,  width * height * 4);
+					// unlock the window buffer and post it to display
+					ANativeWindow_unlockAndPost(window);
+					// count number of frames
+					++i;
+				}
+			}
+		}
+
+		av_free_packet(&packet);
+	}
+
+	LOGD(LOG_TAG, "Total %d frames decoded and rendered", i);
+	//finish(env);
+	jvm->DetachCurrentThread();
+}
+
+
+
+JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_play(JNIEnv* env, jobject obj)
+{
+	stop = 0;
+
+	pthread_t decodeThread;
+	pthread_create(&decodeThread, NULL, decodeAndRender,NULL);
+}
+
+JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_stop(JNIEnv* env, jobject obj)
+{
+	stop = 1;
 }
 
 void SaveFrame(JNIEnv *pEnv, jobject pObj, jobject pBitmap, int width, int height, int iFrame) {
