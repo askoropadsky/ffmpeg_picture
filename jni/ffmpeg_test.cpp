@@ -22,6 +22,8 @@ extern "C" {
 #define LOGV(LOG_TAG, ...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 #define LOGE(LOG_TAG, ...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+#define JNI_CONNECTOR_CLASS "com/askoropadsky/ChromaKey/ChromaKeyController"
+
 JavaVM* jvm;
 ANativeWindow*	window;
 int width;
@@ -38,7 +40,10 @@ bool fileWasOpened = false;
 SwsContext*	swsContext = NULL;
 static jobject bitmap;
 void*	buffer = NULL;
+bool	chromaKeyIsEnabled = false;
 int stop;
+
+
 
 jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
 	jvm = pVm;
@@ -52,18 +57,13 @@ jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
 	return JNI_VERSION_1_6;
 }
 
-void init_ffmpeg()
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_initFfmpeg(JNIEnv* env, jobject obj)
 {
 	av_register_all();
 	LOGD(LOG_TAG, "av_register_all() done");
 }
 
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_initFfmpeg(JNIEnv* env, jobject obj)
-{
-	init_ffmpeg();
-}
-
-JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNIEnv* env, jobject obj, jstring filePath)
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_openFile(JNIEnv* env, jobject obj, jstring filePath)
 {
 	if(NULL == filePath)
 	{
@@ -71,7 +71,6 @@ JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNI
 		return false;
 	}
 
-	LOGD(LOG_TAG , "jstring is %d", filePath);
 	const char* path = env->GetStringUTFChars(filePath, NULL);
 	if(NULL == path)
 	{
@@ -84,7 +83,7 @@ JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNI
 	avformat_open_input(&pFormatContext, path, NULL, NULL);
 	if(NULL == pFormatContext)
 	{
-		LOGE(LOG_TAG, "Cant avformat_open_input");
+		LOGE(LOG_TAG, "Can't avformat_open_input");
 		return false;
 	}
 	LOGD(LOG_TAG, "File %s is opened.", path);
@@ -100,7 +99,6 @@ JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNI
 
 	int i;
 	videoStreamIndex = -1;
-	pCodecContext;
 	for(i = 0 ; i < pFormatContext->nb_streams ; i++)
 	{
 		if(pFormatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
@@ -154,39 +152,7 @@ JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_openFile(JNI
 	return true;
 }
 
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_renderFrame(JNIEnv* env, jobject obj)
-{
-	int frameFinished;
-	AVPacket packet;
-	SwsContext* pSwsContext;
-	pSwsContext = sws_getContext(pCodecContext->width, pCodecContext->height, pCodecContext->pix_fmt, pCodecContext->width, pCodecContext->height, PIX_FMT_RGBA, SWS_BILINEAR, NULL, NULL, NULL);
-
-	void* buffer;
-	bitmap = createBitmap(env, pCodecContext->width, pCodecContext->height);
-	if (AndroidBitmap_lockPixels(env, bitmap, &buffer) < 0) return;
-
-	avpicture_fill((AVPicture*)pFrameRGBA, (uint8_t*)buffer, PIX_FMT_RGBA, pCodecContext->width, pCodecContext->height);
-
-	int i=0;
-	while(av_read_frame(pFormatContext, &packet) >= 0)
-	{
-		if(packet.stream_index == videoStreamIndex)
-		{
-			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
-
-			if(frameFinished)
-			{
-				sws_scale(pSwsContext, (uint8_t const* const*)pDecodedFrame->data, pDecodedFrame->linesize, 0, pCodecContext->height, pFrameRGBA->data, pFrameRGBA->linesize);
-			}
-		}
-
-	}
-
-	SaveFrame(env, obj, bitmap, pFrameRGBA->width, pFrameRGBA->height, 99);
-	AndroidBitmap_unlockPixels(env, bitmap);
-}
-
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_closeFile(JNIEnv* env, jobject obj)
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_closeFile(JNIEnv* env, jobject obj)
 {
 	LOGD(LOG_TAG,"closeFile");
 	if(!fileWasOpened) return;
@@ -200,7 +166,7 @@ JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_closeFile(JNIEnv
 	LOGD(LOG_TAG,"pFormatContext released");
 }
 
-JNIEXPORT jintArray JNICALL Java_com_example_ffmpegtest_JniConnector_getVideoResolution(JNIEnv* env, jobject obj)
+JNIEXPORT jintArray JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getVideoResolution(JNIEnv* env, jobject obj)
 {
 	jintArray lres;
 	if(NULL == pCodecContext) return NULL;
@@ -219,7 +185,7 @@ JNIEXPORT jintArray JNICALL Java_com_example_ffmpegtest_JniConnector_getVideoRes
 	return lres;
 }
 
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_setSurface(JNIEnv* env,jobject obj, jobject surface)
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setSurface(JNIEnv* env,jobject obj, jobject surface)
 {
 	if(NULL != surface)
 	{
@@ -234,7 +200,7 @@ JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_setSurface(JNIEn
 	}
 }
 
-JNIEXPORT jboolean JNICALL Java_com_example_ffmpegtest_JniConnector_setup(JNIEnv* env, jobject obj, jint _width, jint _height)
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setup(JNIEnv* env, jobject obj, jint _width, jint _height)
 {
 	width = _width;
 	height = _height;
@@ -271,11 +237,24 @@ void finish(JNIEnv* env)
 
 void processBuffer(uint8_t* buffer, int width, int height)
 {
-	int length = width * height * 4 / 2;
-	for(int i = 0 ; i < length/4 ; i++)
+	int pixelsCount = width * height;
+
+	uint8_t* red;
+	uint8_t* green;
+	uint8_t* blue;
+	uint8_t* alpha;
+
+	for(int i = 0 ; i < pixelsCount ; i++)
 	{
+		red 	= buffer + i*4;
+		green 	= buffer + i*4 + 1;
+		blue 	= buffer + i*4 + 2;
+		alpha	= buffer + i*4 + 3;
+
 		//*(buffer+i) = (uint8_t) rand() ;
-		*(buffer + i*4 + 3) = 0;
+		if(*blue < 40 && *red < 40 && *green < 40) *alpha = 128;
+		if(*blue < 20 && *red < 20 && *green < 20) *alpha = 64;
+		if(*blue < 5 && *red < 5 && *green < 5) *alpha = 0;
 	}
 }
 
@@ -327,7 +306,10 @@ void *decodeAndRender(void*)
 					//LOGD(LOG_TAG, "copy buffer %d:%d:%d", width, height, width*height*4);
 					//LOGD(LOG_TAG, "window buffer: %d:%d:%d", windowBuffer.width, windowBuffer.height, windowBuffer.stride);
 
-					processBuffer((uint8_t*)buffer, width, height);
+					if(chromaKeyIsEnabled)
+					{
+						processBuffer((uint8_t*)buffer, width, height);
+					}
 
 					memcpy(windowBuffer.bits, buffer,  width * height * 4);
 					// unlock the window buffer and post it to display
@@ -342,13 +324,11 @@ void *decodeAndRender(void*)
 	}
 
 	LOGD(LOG_TAG, "Total %d frames decoded and rendered", i);
-	//finish(env);
+	//finish(env); //TODO: implement finishing
 	jvm->DetachCurrentThread();
 }
 
-
-
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_play(JNIEnv* env, jobject obj)
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_play(JNIEnv* env, jobject obj)
 {
 	stop = 0;
 
@@ -356,27 +336,19 @@ JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_play(JNIEnv* env
 	pthread_create(&decodeThread, NULL, decodeAndRender,NULL);
 }
 
-JNIEXPORT void JNICALL Java_com_example_ffmpegtest_JniConnector_stop(JNIEnv* env, jobject obj)
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_stop(JNIEnv* env, jobject obj)
 {
 	stop = 1;
 }
 
-void SaveFrame(JNIEnv *pEnv, jobject pObj, jobject pBitmap, int width, int height, int iFrame) {
-	char szFilename[200];
-	jmethodID sSaveFrameMID;
-	jclass mainActCls;
-	sprintf(szFilename, "/storage/sdcard0/frame%d.jpg", iFrame);
-	//mainActCls = pEnv->GetObjectClass(pObj);
-	//sSaveFrameMID = pEnv->GetStaticMethodID(mainActCls, "saveFrameToPath", "(Landroid/graphics/Bitmap;Ljava/lang/String;)V");
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_enableChromaKey(JNIEnv* env, jobject obj)
+{
+	chromaKeyIsEnabled = true;
+}
 
-	jclass jniClass = pEnv->FindClass("com/example/ffmpegtest/JniConnector");
-	jmethodID mid = pEnv->GetStaticMethodID(jniClass, "saveFrameToPath", "(Landroid/graphics/Bitmap;Ljava/lang/String;)V");
-
-	LOGD(LOG_TAG,"call java method to save frame %d", iFrame);
-	jstring filePath = pEnv->NewStringUTF(szFilename);
-	//pEnv->CallVoidMethod(pObj, sSaveFrameMID, pBitmap, filePath);
-	pEnv->CallStaticVoidMethod(jniClass, mid, pBitmap, filePath);
-	LOGD(LOG_TAG, "call java method to save frame %d done", iFrame);
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_disableChromaKey(JNIEnv* env, jobject obj)
+{
+	chromaKeyIsEnabled = false;
 }
 
 jobject createBitmap(JNIEnv *pEnv, int pWidth, int pHeight) {
