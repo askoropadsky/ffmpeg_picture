@@ -16,8 +16,10 @@
 
     <com.askoropadsky.ChromaKey.ChromaKeyVideoView
         android:id="@+id/chromaKeySurface"
-        android:layout_width="300dp"
-        android:layout_height="200dp" />
+        android:layout_width="360dp"
+        android:layout_height="202dp"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true" />
 
     <Button
         android:id="@+id/button1"
@@ -45,5 +47,14 @@
         android:layout_toRightOf="@+id/button1"
         android:text="Stop"
         android:onClick="stopPlayback" />
+
+    <Button
+        android:id="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/button1"
+        android:layout_alignLeft="@+id/button1"
+        android:text="CloseFile"
+        android:onClick="closeFile" />
 
 </RelativeLayout>

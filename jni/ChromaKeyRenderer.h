@@ -21,6 +21,8 @@ extern "C" {
 
 class ChromaKeyRenderer {
 public:
+	//typedef void (*RENDER_CALLBACK)(void* userData);
+	static void* sDecodeAndRender(void* pUserData);
 
 private:
 	JavaVM* jvm;
@@ -40,19 +42,35 @@ private:
 	int width;
 	int height;
 
+	int	keyColorLowRGB[3];
+	int keyColorHighRGB[3];
+
 	bool fileIsPrepared;
 	bool chromaKeyIsEnabled;
 	bool isPlaying;
-	int stop;
+	bool stopRendering;
+
+	void decodeAndRender();
+	jobject createBitmap(JNIEnv* env, int width, int height);
+	void processBuffer(uint8_t* buffer, int width, int height);
 
 public:
-	ChromaKeyRenderer();
+	ChromaKeyRenderer(JavaVM* pJvm);
 	virtual ~ChromaKeyRenderer();
 
 	bool prepare(const char* path);
-//	bool prepare();
-//	void play();
-//	void stop();
+	void releaseFile();
+
+	void setSurface(JNIEnv* env, jobject surface);
+	void setVideoScalingFactor(JNIEnv* env, int width, int height);
+
+	void fillVideoResolution(int* outWidth, int* outHeight);
+
+	void enableChromaKey();
+	void disableChromaKey();
+
+	void play();
+	void stop();
 };
 
 #endif /* CHROMAKEYRENDERER_H_ */

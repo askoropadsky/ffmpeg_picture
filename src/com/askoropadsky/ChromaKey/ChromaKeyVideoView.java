@@ -5,6 +5,7 @@ import java.io.File;
 import android.content.Context;
 import android.graphics.PixelFormat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.SurfaceView;
 
 public class ChromaKeyVideoView extends SurfaceView {
@@ -48,6 +49,11 @@ public class ChromaKeyVideoView extends SurfaceView {
 		ChromaKeyController.openFile(filePath);
 	}
 	
+	public void releaseVideoFile()
+	{
+		ChromaKeyController.closeFile();
+	}
+	
 	private boolean fileIsExists()
 	{
 		File fd = new File(filePath);
@@ -67,6 +73,7 @@ public class ChromaKeyVideoView extends SurfaceView {
 	{
 		int width = getWidth();
 		int height = getHeight();
+		Log.d("qeqe", "setVideoScaleFactor W : H = " + width + " " + height);
 		ChromaKeyController.setup(width, height);
 	}
 	
@@ -83,6 +90,14 @@ public class ChromaKeyVideoView extends SurfaceView {
 	public void disableChromaKey()
 	{
 		chromaKeyIsEnabled = false;
+	}
+	
+	public float getVideoAspectRatio()
+	{
+		int[] videoRes = ChromaKeyController.getVideoResolution();
+		float aspectRatio = (float) videoRes[0] / (float) videoRes[1];
+		Log.d("qeqe", "video is " + videoRes[0] + " x " + videoRes[1]);
+		return aspectRatio;
 	}
 	
 	

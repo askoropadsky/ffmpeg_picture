@@ -91,7 +91,7 @@ obj/local/armeabi/objs/ffmpeg_test/ffmpeg_test.o: jni/ffmpeg_test.cpp \
  /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/sources/ffmpeg/android/arm/include/libavformat/version.h \
  /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/sources/ffmpeg/android/arm/include/libswscale/swscale.h \
  /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/sources/ffmpeg/android/arm/include/libswscale/version.h \
- jni/ffmpeg_test.h
+ jni/ChromaKeyRenderer.h jni/ffmpeg_test.h
 
 /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/platforms/android-18/arch-arm/usr/include/stdio.h:
 
@@ -276,5 +276,7 @@ obj/local/armeabi/objs/ffmpeg_test/ffmpeg_test.o: jni/ffmpeg_test.cpp \
 /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/sources/ffmpeg/android/arm/include/libswscale/swscale.h:
 
 /Users/askoropadsky/bin/adt-bundle-mac-x86_64-20130729/android-ndk-r9/sources/ffmpeg/android/arm/include/libswscale/version.h:
+
+jni/ChromaKeyRenderer.h:
 
 jni/ffmpeg_test.h:
