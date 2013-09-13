@@ -20,15 +20,25 @@
 #define LOGW(LOG_TAG, ...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 #define AV_INVALID_STREAM_INDEX -1
+#define CHROMA_KEY_CONTROLLER_CLASS "com/askoropadsky/ChromaKey/ChromaKeyController"
+#define MESSAGE_CALLBACK "nativeMessageReceived"
+#define MESSAGE_CALLBACK_SIG "(I)V"
+
+#define RED 	0
+#define GREEN 	1
+#define BLUE 	2
 
 void* ChromaKeyRenderer::sDecodeAndRender(void* pUserData)
 {
 	ChromaKeyRenderer* instance = (ChromaKeyRenderer*)pUserData;
 	instance->decodeAndRender();
+	return NULL;
 }
 
-ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm) {
+ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controller)
+{
 	jvm = pJvm;
+
 	window = NULL;
 
 	pDecodedFrame = NULL;
@@ -40,17 +50,16 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm) {
 	swsContext = NULL;
 	buffer = NULL;
 
+	bitmap = NULL;
+
 	videoStreamIndex = AV_INVALID_STREAM_INDEX;
 	width = 0;
 	height = 0;
 
-	keyColorLowRGB[0] = 0;
-	keyColorLowRGB[1] = 0;
-	keyColorLowRGB[2] = 0;
-
-	keyColorHighRGB[0] = 5;
-	keyColorHighRGB[1] = 5;
-	keyColorHighRGB[2] = 5;
+	keyColorRGB[0] = 128;
+	keyColorRGB[1] = 128;
+	keyColorRGB[2] = 128;
+	keyChannel = 2;
 
 	stopRendering = false;
 	fileIsPrepared = false;
@@ -61,6 +70,7 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm) {
 }
 
 ChromaKeyRenderer::~ChromaKeyRenderer() {
+
 // TODO: this should be called at the end of render thread
 //	AndroidBitmap_unlockPixels(env, bitmap);
 //	av_free(buffer);
@@ -95,7 +105,7 @@ bool ChromaKeyRenderer::prepare(const char* path)
 	}
 	LOGD(LOG_TAG, "File %s is opened.", path);
 
-	if(av_find_stream_info(pFormatContext) < 0)
+	if(avformat_find_stream_info(pFormatContext, NULL) < 0)
 	{
 		LOGE(LOG_TAG, "Can't find streams in the file %s", path);
 		avformat_close_input(&pFormatContext);
@@ -161,6 +171,7 @@ void ChromaKeyRenderer::releaseFile()
 {
 	LOGD(LOG_TAG,"closeFile");
 	if(!fileIsPrepared) return;
+
 	av_free(pFrameRGBA);
 	pFrameRGBA = NULL;
 	LOGD(LOG_TAG,"pFrameARGB released");
@@ -175,6 +186,8 @@ void ChromaKeyRenderer::releaseFile()
 
 	avformat_close_input(&pFormatContext);
 	pFormatContext = NULL;
+
+	fileIsPrepared = false;
 	LOGD(LOG_TAG,"pFormatContext released");
 }
 
@@ -212,7 +225,11 @@ void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _heig
 	}
 
 	LOGD(LOG_TAG, "Scale video to W:H = %d : %d", width, height);
-	bitmap = createBitmap(env, width, height);
+	jobject localBitmap = createBitmap(env, width, height);
+
+	if(bitmap != NULL) env->DeleteGlobalRef(bitmap);
+	bitmap = env->NewGlobalRef(localBitmap);
+
 	if(AndroidBitmap_lockPixels(env, bitmap, &buffer) < 0) return;
 
 	swsContext = sws_getContext (
@@ -228,6 +245,17 @@ void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _heig
 		        NULL);
 
 	avpicture_fill((AVPicture *)pFrameRGBA, (uint8_t*)buffer, AV_PIX_FMT_RGBA, width, height);
+}
+
+void ChromaKeyRenderer::setChromaKey(int red, int green, int blue, int keyColor)
+{
+	keyColorRGB[0] = red > 255 ? 255 : red ;
+	keyColorRGB[1] = green > 255 ? 255 : green;
+	keyColorRGB[2] = blue > 255 ? 255 : blue;
+
+	keyChannel = keyColor;
+
+	if(keyChannel > 2) keyChannel = 2;
 }
 
 void ChromaKeyRenderer::fillVideoResolution(int* outWidth, int* outHeight)
@@ -286,9 +314,31 @@ void ChromaKeyRenderer::processBuffer(uint8_t* buffer, int width, int height)
 		blue 	= buffer + i*4 + 2;
 		alpha	= buffer + i*4 + 3;
 
-		if(*blue < 40 && *red < 40 && *green < 40) *alpha = 128;
-		if(*blue < 20 && *red < 20 && *green < 20) *alpha = 64;
-		if(*blue < 5 && *red < 5 && *green < 5) *alpha = 0;
+//		if(*blue < 40 && *red < 40 && *green < 40) *alpha = 128;
+//		if(*blue < 20 && *red < 20 && *green < 20) *alpha = 64;
+//		if(*red < 5 && *green < 5 && *blue < 5 ) *alpha = 0;
+
+		bool shouldBeTransparent = false;
+
+		if(keyChannel == RED) 	shouldBeTransparent = (*red > keyColorRGB[0] && *green < keyColorRGB[1] && *blue < keyColorRGB[2]);
+		if(keyChannel == GREEN) shouldBeTransparent = (*red < keyColorRGB[0] && *green > keyColorRGB[1] && *blue < keyColorRGB[2]);
+		if(keyChannel == BLUE) 	shouldBeTransparent = (*red < keyColorRGB[0] && *green < keyColorRGB[1] && *blue > keyColorRGB[2]);
+
+		if(shouldBeTransparent)
+		{
+			*red = 0;
+			*green = 0;
+			*blue = 0;
+			*alpha = 0;
+		}
+
+//		if(*red < 128 && *green > 128 && *blue < 128)
+//		{
+//			*red = 0;
+//			*green = 0;
+//			*blue = 0;
+//			*alpha = 0;
+//		}
 	}
 }
 
@@ -302,6 +352,12 @@ void ChromaKeyRenderer::disableChromaKey()
 	chromaKeyIsEnabled = false;
 }
 
+long ChromaKeyRenderer::getDuration()
+{
+	//TODO: needs to be implemented
+	return 0;
+}
+
 void ChromaKeyRenderer::play()
 {
 	if(!fileIsPrepared) return;
@@ -313,6 +369,7 @@ void ChromaKeyRenderer::play()
 
 	pthread_t decodeThread;
 	pthread_create(&decodeThread, NULL, sDecodeAndRender,(void*)this);
+
 	isPlaying = true;
 }
 
@@ -326,9 +383,26 @@ void ChromaKeyRenderer::decodeAndRender()
 {
 	LOGD(LOG_TAG, "Render thread enter.");
 	LOGD(LOG_TAG, "Render thread: JavaVM is %p", jvm);
-	JNIEnv* env = NULL;
-	jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
 
+	JNIEnv * g_env;
+	// double check it's all ok
+	int getEnvStat = jvm->GetEnv((void **)&g_env, JNI_VERSION_1_6);
+	if (getEnvStat == JNI_EDETACHED)
+	{
+		LOGD(LOG_TAG, "GetEnv: not attached");
+		if (jvm->AttachCurrentThread(&g_env, NULL) != 0)
+		{
+			LOGE(LOG_TAG, "Failed to attach.");
+		}
+	}
+	else if (getEnvStat == JNI_OK)
+	{
+		LOGD(LOG_TAG, "JNIEnv is valid");
+	}
+	else if (getEnvStat == JNI_EVERSION)
+	{
+		LOGE(LOG_TAG, "GetEnv: JNI version not supported.");
+	}
 
 	ANativeWindow_Buffer windowBuffer;
 	AVPacket packet;
@@ -341,6 +415,7 @@ void ChromaKeyRenderer::decodeAndRender()
 
 	while(av_read_frame(pFormatContext, &packet) >= 0 && !stopRendering)
 	{
+		//LOGD(LOG_TAG, "While start");
 		if(packet.stream_index == videoStreamIndex)
 		{
 			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
@@ -368,7 +443,7 @@ void ChromaKeyRenderer::decodeAndRender()
 					{
 						processBuffer((uint8_t*)buffer, width, height);
 					}
-					LOGD(LOG_TAG, "Render frame %d %d. WindowBuffer is %d %d, stride is %d, format is %d", width, height, windowBuffer.width, windowBuffer.height, windowBuffer.stride, windowBuffer.format);
+					//LOGD(LOG_TAG, "Render frame %d %d. WindowBuffer is %d %d, stride is %d, format is %d", width, height, windowBuffer.width, windowBuffer.height, windowBuffer.stride, windowBuffer.format);
 
 					memcpy(windowBuffer.bits, buffer,  width * height * 4);
 					// unlock the window buffer and post it to display
@@ -377,14 +452,18 @@ void ChromaKeyRenderer::decodeAndRender()
 					i++;;
 				}
 			}
+			//LOGD(LOG_TAG, "While end");
 		}
 
 		av_free_packet(&packet);
 	}
 
 	LOGD(LOG_TAG, "Total %d frames decoded and rendered", i);
+
+	AndroidBitmap_unlockPixels(g_env, bitmap);
+	releaseFile();
+
+	jvm->DetachCurrentThread();
 	isPlaying = false;
-	//finish(env); //TODO: implement finishing
-	//jvm->DetachCurrentThread();
 }
 

@@ -1,9 +1,13 @@
 package com.askoropadsky.ChromaKey;
 
+import android.os.Handler;
+import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 
 class ChromaKeyController implements SurfaceHolder.Callback {
+	
+	private Handler	mReceiver;
 	
 	@Override
 	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
@@ -19,6 +23,11 @@ class ChromaKeyController implements SurfaceHolder.Callback {
 		ChromaKeyController.setSurface(null);
 	}
 	
+	public static void nativeMessageReceived(int message)
+	{
+		Log.d("qeqe", "GOT NATIVE MESSAGE " + message);
+	}
+	
 	/* Native part */
 	public static native void initFfmpeg();
 	public static native boolean openFile(String path);
@@ -31,6 +40,8 @@ class ChromaKeyController implements SurfaceHolder.Callback {
 	public static native void stop();
 	public static native void enableChromaKey();
 	public static native void disableChromaKey();
+	public static native void setChromaKey(int red, int green, int blue, int keyChannel);
+	public static native long getDuration();
 	
 	static {
 		System.loadLibrary("avutil-52");

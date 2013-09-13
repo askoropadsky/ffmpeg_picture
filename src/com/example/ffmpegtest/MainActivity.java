@@ -8,7 +8,6 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.widget.CheckBox;
-import android.widget.RelativeLayout.LayoutParams;
 
 import com.askoropadsky.ChromaKey.ChromaKeyVideoView;
 import com.example.ffmpeg_test.R;
@@ -48,6 +47,8 @@ public class MainActivity extends Activity {
 		
 		try {
 			chromaKeySurface.prepare();
+			
+			Log.w("qeqe", "Durations is " + chromaKeySurface.getDuration());
 			
 			if(chromaKeyCheckBox.isChecked()) chromaKeySurface.enableChromaKey();
 			else chromaKeySurface.disableChromaKey();

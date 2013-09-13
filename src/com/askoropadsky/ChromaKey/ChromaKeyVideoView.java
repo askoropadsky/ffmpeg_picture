@@ -10,6 +10,12 @@ import android.view.SurfaceView;
 
 public class ChromaKeyVideoView extends SurfaceView {
 	
+	public static final int KEY_CHANNEL_RED = 0;
+	public static final int KEY_CHANNEL_GREEN = 1;
+	public static final int KEY_CHANNEL_BLUE = 2;
+	
+	private final String LOG_TAG = "ChromaKeyVideoView";
+	
 	private String filePath; 
 	private boolean chromaKeyIsEnabled = false;
 	
@@ -73,13 +79,18 @@ public class ChromaKeyVideoView extends SurfaceView {
 	{
 		int width = getWidth();
 		int height = getHeight();
-		Log.d("qeqe", "setVideoScaleFactor W : H = " + width + " " + height);
+		Log.d(LOG_TAG, "setVideoScaleFactor W : H = " + width + " " + height);
 		ChromaKeyController.setup(width, height);
 	}
 	
 	public void stop()
 	{
 		ChromaKeyController.stop();
+	}
+	
+	public void setChromaKey(int red, int green, int blue, int keyChannel)
+	{
+		ChromaKeyController.setChromaKey(red, green, blue, keyChannel);
 	}
 	
 	public void enableChromaKey()
@@ -90,6 +101,11 @@ public class ChromaKeyVideoView extends SurfaceView {
 	public void disableChromaKey()
 	{
 		chromaKeyIsEnabled = false;
+	}
+	
+	public long getDuration()
+	{
+		return ChromaKeyController.getDuration();
 	}
 	
 	public float getVideoAspectRatio()

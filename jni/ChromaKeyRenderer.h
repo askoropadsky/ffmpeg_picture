@@ -19,9 +19,10 @@ extern "C" {
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 
+#define CHROMA_KEY_MESSAGE_VIDEO_DID_FINISHED	1
+
 class ChromaKeyRenderer {
 public:
-	//typedef void (*RENDER_CALLBACK)(void* userData);
 	static void* sDecodeAndRender(void* pUserData);
 
 private:
@@ -42,20 +43,16 @@ private:
 	int width;
 	int height;
 
-	int	keyColorLowRGB[3];
-	int keyColorHighRGB[3];
+	int	keyColorRGB[3];
+	int keyChannel;
 
 	bool fileIsPrepared;
 	bool chromaKeyIsEnabled;
 	bool isPlaying;
 	bool stopRendering;
 
-	void decodeAndRender();
-	jobject createBitmap(JNIEnv* env, int width, int height);
-	void processBuffer(uint8_t* buffer, int width, int height);
-
 public:
-	ChromaKeyRenderer(JavaVM* pJvm);
+	ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controller);
 	virtual ~ChromaKeyRenderer();
 
 	bool prepare(const char* path);
@@ -63,14 +60,22 @@ public:
 
 	void setSurface(JNIEnv* env, jobject surface);
 	void setVideoScalingFactor(JNIEnv* env, int width, int height);
+	void setChromaKey(int red, int green, int blue, int keyChannel);
 
 	void fillVideoResolution(int* outWidth, int* outHeight);
 
 	void enableChromaKey();
 	void disableChromaKey();
 
+	long getDuration();
+
 	void play();
 	void stop();
+
+private:
+	void decodeAndRender();
+	jobject createBitmap(JNIEnv* env, int width, int height);
+	void processBuffer(uint8_t* buffer, int width, int height);
 };
 
 #endif /* CHROMAKEYRENDERER_H_ */

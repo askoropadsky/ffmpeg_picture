@@ -17,7 +17,7 @@ extern "C" {
 #include "ChromaKeyRenderer.h"
 #include "ffmpeg_test.h"
 
-#define LOG_TAG "NativeLib"
+#define LOG_TAG "ChromaKeyGlue"
 
 #define LOGD(LOG_TAG, ...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define LOGV(LOG_TAG, ...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
@@ -42,7 +42,7 @@ jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
 
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_initFfmpeg(JNIEnv* env, jobject obj)
 {
-	renderer = new ChromaKeyRenderer(jvm);
+	renderer = new ChromaKeyRenderer(jvm, env, obj);
 	LOGD(LOG_TAG, "av_register_all() done");
 }
 
@@ -120,5 +120,15 @@ JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_enabl
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_disableChromaKey(JNIEnv* env, jobject obj)
 {
 	renderer->disableChromaKey();
+}
+
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setChromaKey(JNIEnv* env, jobject obj, jint red, jint green, jint blue, jint keyChannel)
+{
+	renderer->setChromaKey(red, green, blue, keyChannel);
+}
+
+JNIEXPORT jlong JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getDuration(JNIEnv* env, jobject obj)
+{
+	return renderer->getDuration();
 }
 
