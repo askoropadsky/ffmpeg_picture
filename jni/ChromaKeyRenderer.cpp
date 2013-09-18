@@ -46,9 +46,8 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controll
 
 	pFormatContext = NULL;
 	pCodecContext = NULL;
-	pCodec = NULL;
 	swsContext = NULL;
-	buffer = NULL;
+	pPixelBuffer = NULL;
 
 	bitmap = NULL;
 
@@ -64,25 +63,28 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controll
 	stopRendering = false;
 	fileIsPrepared = false;
 	chromaKeyIsEnabled = false;
-	isPlaying = false;
+	bIsPlaying = false;
 
 	av_register_all();
 }
 
-ChromaKeyRenderer::~ChromaKeyRenderer() {
+ChromaKeyRenderer::~ChromaKeyRenderer()
+{
+	if(window != NULL) ANativeWindow_release(window);
+	if(swsContext != NULL) sws_freeContext(swsContext);
 
-// TODO: this should be called at the end of render thread
-//	AndroidBitmap_unlockPixels(env, bitmap);
-//	av_free(buffer);
-//	av_free(pFrameRGBA);
-//	av_free(pDecodedFrame);
-//	avcodec_close(pCodecContext);
-//	avformat_close_input(&pFormatContext);
+	if(swsContext != NULL)
+	{
+		sws_freeContext(swsContext);
+		swsContext = NULL;
+	}
+
+
 }
 
-bool ChromaKeyRenderer::prepare(const char* path)
+bool ChromaKeyRenderer::prepare(JNIEnv* env, const char* path)
 {
-	if(isPlaying)
+	if(bIsPlaying)
 	{
 		LOGW(LOG_TAG, "Error. Can't prepare in playing state.");
 		return false;
@@ -95,6 +97,11 @@ bool ChromaKeyRenderer::prepare(const char* path)
 	}
 
 	LOGD(LOG_TAG, "File path is: %s", path);
+
+	if(fileIsPrepared)
+	{
+		releaseFile(env);
+	}
 
 	pFormatContext = NULL;
 	avformat_open_input(&pFormatContext, path, NULL, NULL);
@@ -135,7 +142,7 @@ bool ChromaKeyRenderer::prepare(const char* path)
 
 	pCodecContext = pFormatContext->streams[videoStreamIndex]->codec;
 
-	pCodec = avcodec_find_decoder(pCodecContext->codec_id);
+	AVCodec* pCodec = avcodec_find_decoder(pCodecContext->codec_id);
 
 	if(NULL == pCodec)
 	{
@@ -167,7 +174,7 @@ bool ChromaKeyRenderer::prepare(const char* path)
 	return true;
 }
 
-void ChromaKeyRenderer::releaseFile()
+void ChromaKeyRenderer::releaseFile(JNIEnv* env)
 {
 	LOGD(LOG_TAG,"closeFile");
 	if(!fileIsPrepared) return;
@@ -189,26 +196,51 @@ void ChromaKeyRenderer::releaseFile()
 
 	fileIsPrepared = false;
 	LOGD(LOG_TAG,"pFormatContext released");
+
+	if(bitmap != NULL) env->DeleteGlobalRef(bitmap);
+	bitmap = NULL;
+
+	LOGW(LOG_TAG, "window = %p", window);
+	LOGW(LOG_TAG, "bitmap = %p", bitmap);
+	LOGW(LOG_TAG, "decodedFrame = %p", pDecodedFrame);
+	LOGW(LOG_TAG, "frameRGBA = %p", pFrameRGBA);
+	LOGW(LOG_TAG, "FormatCtx = %p", pFormatContext);
+	LOGW(LOG_TAG, "CodecCtx = %p", pCodecContext);
+	LOGW(LOG_TAG, "SwsCtx = %p", swsContext);
+	LOGW(LOG_TAG, "pixelBuffer = %p", pPixelBuffer);
+
 }
 
 void ChromaKeyRenderer::setSurface(JNIEnv* env, jobject surface)
 {
 	if(NULL != surface)
 	{
+		if(window != NULL)
+		{
+			ANativeWindow_release(window);
+			window = NULL;
+		}
+
 		window = ANativeWindow_fromSurface(env, surface);
 		ANativeWindow_setBuffersGeometry(window, 0, 0, WINDOW_FORMAT_RGBA_8888);
 		LOGD(LOG_TAG, "SetSurface OK");
 	}
 	else
 	{
-		LOGD(LOG_TAG, "SetSurface FAILED");
-		ANativeWindow_release(window);
+		if(window != NULL)
+		{
+			ANativeWindow_release(window);
+			window = NULL;
+		}
+		LOGD(LOG_TAG, "SetSurface: surface is NULL. window released.");
 	}
 }
 
 void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _height)
 {
-	if(isPlaying)
+	LOGD(LOG_TAG,"setVideoScalingFactor: entering.");
+
+	if(bIsPlaying)
 	{
 		LOGW(LOG_TAG,"Can't set videoScaling factor in playing state.");
 		return;
@@ -217,6 +249,13 @@ void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _heig
 	height = _height;
 
 	ANativeWindow_Buffer windowBuffer;
+
+	if(window == NULL)
+	{
+		LOGW(LOG_TAG,"setVideoScalingFactor: window == NULL. exiting.");
+		return;
+	}
+
 	if(ANativeWindow_lock(window, &windowBuffer, NULL) >= 0)
 	{
 		LOGD(LOG_TAG, "passed W:H is %d:%d, windows W:H is %d:%d, stride = %d, format = %d", _width, _height, windowBuffer.width, windowBuffer.height, windowBuffer.stride, windowBuffer.format);
@@ -230,7 +269,13 @@ void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _heig
 	if(bitmap != NULL) env->DeleteGlobalRef(bitmap);
 	bitmap = env->NewGlobalRef(localBitmap);
 
-	if(AndroidBitmap_lockPixels(env, bitmap, &buffer) < 0) return;
+	if(AndroidBitmap_lockPixels(env, bitmap, &pPixelBuffer) < 0) return;
+
+	if(swsContext != NULL)
+	{
+		sws_freeContext(swsContext);
+		swsContext = NULL;
+	}
 
 	swsContext = sws_getContext (
 		        pCodecContext->width,
@@ -244,7 +289,8 @@ void ChromaKeyRenderer::setVideoScalingFactor(JNIEnv* env, int _width, int _heig
 		        NULL,
 		        NULL);
 
-	avpicture_fill((AVPicture *)pFrameRGBA, (uint8_t*)buffer, AV_PIX_FMT_RGBA, width, height);
+	avpicture_fill((AVPicture *)pFrameRGBA, (uint8_t*)pPixelBuffer, AV_PIX_FMT_RGBA, width, height);
+	LOGD(LOG_TAG,"setVideoScalingFactor: exiting.");
 }
 
 void ChromaKeyRenderer::setChromaKey(int red, int green, int blue, int keyColor)
@@ -268,8 +314,9 @@ void ChromaKeyRenderer::fillVideoResolution(int* outWidth, int* outHeight)
 
 jobject ChromaKeyRenderer::createBitmap(JNIEnv* pEnv, int pWidth, int pHeight)
 {
-	int i;
 	LOGD(LOG_TAG, "create bitmap with w=%d, h=%d", pWidth, pHeight);
+
+	int i;
 	jclass javaBitmapClass = (jclass)pEnv->FindClass("android/graphics/Bitmap");
 	jmethodID mid = pEnv->GetStaticMethodID(javaBitmapClass, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;");
 
@@ -352,6 +399,11 @@ void ChromaKeyRenderer::disableChromaKey()
 	chromaKeyIsEnabled = false;
 }
 
+bool ChromaKeyRenderer::isPlaying()
+{
+	return bIsPlaying;
+}
+
 long ChromaKeyRenderer::getDuration()
 {
 	//TODO: needs to be implemented
@@ -362,21 +414,26 @@ void ChromaKeyRenderer::play()
 {
 	if(!fileIsPrepared) return;
 
-	LOGD(LOG_TAG, "Play: isPlaying = %d.", isPlaying);
-	if(isPlaying) return;
+	LOGD(LOG_TAG, "Play: isPlaying = %d.", bIsPlaying);
+	if(bIsPlaying) return;
+
+	if(window == NULL)
+	{
+		LOGW(LOG_TAG, "Play: window == NULL. Exit.");
+		return;
+	}
 
 	stopRendering = false;
 
 	pthread_t decodeThread;
 	pthread_create(&decodeThread, NULL, sDecodeAndRender,(void*)this);
 
-	isPlaying = true;
+	bIsPlaying = true;
 }
 
 void ChromaKeyRenderer::stop()
 {
 	stopRendering = true;
-	isPlaying = false;
 }
 
 void ChromaKeyRenderer::decodeAndRender()
@@ -410,12 +467,8 @@ void ChromaKeyRenderer::decodeAndRender()
 	int frameFinished;
 	int lineCnt;
 
-
-	LOGD(LOG_TAG, "Enter render thread");
-
 	while(av_read_frame(pFormatContext, &packet) >= 0 && !stopRendering)
 	{
-		//LOGD(LOG_TAG, "While start");
 		if(packet.stream_index == videoStreamIndex)
 		{
 			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
@@ -441,18 +494,16 @@ void ChromaKeyRenderer::decodeAndRender()
 				{
 					if(chromaKeyIsEnabled)
 					{
-						processBuffer((uint8_t*)buffer, width, height);
+						processBuffer((uint8_t*)pPixelBuffer, width, height);
 					}
-					//LOGD(LOG_TAG, "Render frame %d %d. WindowBuffer is %d %d, stride is %d, format is %d", width, height, windowBuffer.width, windowBuffer.height, windowBuffer.stride, windowBuffer.format);
 
-					memcpy(windowBuffer.bits, buffer,  width * height * 4);
+					memcpy(windowBuffer.bits, pPixelBuffer,  width * height * 4);
 					// unlock the window buffer and post it to display
 					ANativeWindow_unlockAndPost(window);
 					// count number of frames
 					i++;;
 				}
 			}
-			//LOGD(LOG_TAG, "While end");
 		}
 
 		av_free_packet(&packet);
@@ -461,9 +512,11 @@ void ChromaKeyRenderer::decodeAndRender()
 	LOGD(LOG_TAG, "Total %d frames decoded and rendered", i);
 
 	AndroidBitmap_unlockPixels(g_env, bitmap);
-	releaseFile();
+	pPixelBuffer = NULL;
+	releaseFile(g_env);
 
 	jvm->DetachCurrentThread();
-	isPlaying = false;
+	bIsPlaying = false;
+	LOGD(LOG_TAG, "Render thread exit.");
 }
 

@@ -26,7 +26,7 @@ extern "C" {
 #define JNI_CONNECTOR_CLASS "com/askoropadsky/ChromaKey/ChromaKeyController"
 
 JavaVM* jvm;
-ChromaKeyRenderer*	renderer;
+ChromaKeyRenderer*	renderer = NULL;
 
 jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
 	jvm = pVm;
@@ -43,7 +43,7 @@ jint JNI_OnLoad(JavaVM* pVm, void* reserved) {
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_initFfmpeg(JNIEnv* env, jobject obj)
 {
 	renderer = new ChromaKeyRenderer(jvm, env, obj);
-	LOGD(LOG_TAG, "av_register_all() done");
+	LOGD(LOG_TAG, "renderer created");
 }
 
 JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_openFile(JNIEnv* env, jobject obj, jstring filePath)
@@ -62,7 +62,7 @@ JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_o
 	}
 	LOGD(LOG_TAG, "File path is: %s", path);
 
-	renderer->prepare(path);
+	renderer->prepare(env, path);
 	env->ReleaseStringUTFChars(filePath, path);
 
 	return true;
@@ -71,7 +71,7 @@ JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_o
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_closeFile(JNIEnv* env, jobject obj)
 {
 	LOGD(LOG_TAG,"closeFile");
-	renderer->releaseFile();
+	renderer->releaseFile(env);
 }
 
 JNIEXPORT jintArray JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getVideoResolution(JNIEnv* env, jobject obj)
@@ -130,5 +130,10 @@ JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setCh
 JNIEXPORT jlong JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getDuration(JNIEnv* env, jobject obj)
 {
 	return renderer->getDuration();
+}
+
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_isPlaying(JNIEnv* env, jobject obj)
+{
+	return renderer->isPlaying();
 }
 

@@ -26,6 +26,7 @@ JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_enabl
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_disableChromaKey(JNIEnv* env, jobject obj);
 JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setChromaKey(JNIEnv* env, jobject obj, jint red, jint green, jint blue, jint keyChannel);
 JNIEXPORT jlong JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getDuration(JNIEnv* env, jobject obj);
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_isPlaying(JNIEnv* env, jobject obj);
 
 
 jobject createBitmap(JNIEnv *pEnv, int pWidth, int pHeight);

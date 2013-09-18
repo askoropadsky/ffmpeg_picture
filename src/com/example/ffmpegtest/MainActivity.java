@@ -26,13 +26,7 @@ public class MainActivity extends Activity {
 		chromaKeyCheckBox = (CheckBox) findViewById(R.id.checkBox1);
 
 		File ext = getExternalFilesDir(null);
-		Log.d("qeqe", "ext: " + ext.getAbsolutePath());
-		
-		
-		
-		//chromaKeySurface.setVideoPath("/storage/sdcard0/adapter.mp4");
 		chromaKeySurface.setVideoPath(getExternalFilesDir(null) + "/adapter.mp4");
-		//chromaKeySurface.setVideoPath(getExternalFilesDir(null) + "/adapter_lowres.mp4");
 	}
 
 	@Override

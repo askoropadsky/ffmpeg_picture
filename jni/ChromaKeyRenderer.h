@@ -34,11 +34,11 @@ private:
 	AVFrame*	pFrameRGBA;
 	AVFormatContext* pFormatContext;
 	AVCodecContext*	pCodecContext;
-	AVCodec* pCodec;
+
 	SwsContext*	swsContext;
 	int videoStreamIndex;
 
-	void* buffer;
+	void* pPixelBuffer;
 
 	int width;
 	int height;
@@ -48,15 +48,15 @@ private:
 
 	bool fileIsPrepared;
 	bool chromaKeyIsEnabled;
-	bool isPlaying;
+	bool bIsPlaying;
 	bool stopRendering;
 
 public:
 	ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controller);
 	virtual ~ChromaKeyRenderer();
 
-	bool prepare(const char* path);
-	void releaseFile();
+	bool prepare(JNIEnv* env, const char* path);
+	void releaseFile(JNIEnv* env);
 
 	void setSurface(JNIEnv* env, jobject surface);
 	void setVideoScalingFactor(JNIEnv* env, int width, int height);
@@ -66,6 +66,8 @@ public:
 
 	void enableChromaKey();
 	void disableChromaKey();
+
+	bool isPlaying();
 
 	long getDuration();
 

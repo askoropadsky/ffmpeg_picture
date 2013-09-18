@@ -42,6 +42,7 @@ class ChromaKeyController implements SurfaceHolder.Callback {
 	public static native void disableChromaKey();
 	public static native void setChromaKey(int red, int green, int blue, int keyChannel);
 	public static native long getDuration();
+	public static native boolean isPlaying();
 	
 	static {
 		System.loadLibrary("avutil-52");

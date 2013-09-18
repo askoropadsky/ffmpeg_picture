@@ -108,6 +108,11 @@ public class ChromaKeyVideoView extends SurfaceView {
 		return ChromaKeyController.getDuration();
 	}
 	
+	public boolean isPlaying()
+	{
+		return ChromaKeyController.isPlaying();
+	}
+	
 	public float getVideoAspectRatio()
 	{
 		int[] videoRes = ChromaKeyController.getVideoResolution();
