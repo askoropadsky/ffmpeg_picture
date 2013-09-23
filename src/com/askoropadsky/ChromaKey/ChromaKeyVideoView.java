@@ -88,6 +88,18 @@ public class ChromaKeyVideoView extends SurfaceView {
 		ChromaKeyController.stop();
 	}
 	
+	public void stopSafe() {
+		ChromaKeyController.stop();
+		
+		while(ChromaKeyController.isPlaying()) {
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+	
 	public void setChromaKey(int red, int green, int blue, int keyChannel)
 	{
 		ChromaKeyController.setChromaKey(red, green, blue, keyChannel);
@@ -103,6 +115,14 @@ public class ChromaKeyVideoView extends SurfaceView {
 		chromaKeyIsEnabled = false;
 	}
 	
+	public void setLooped(boolean looped) {
+		ChromaKeyController.setLooped(looped);
+	}
+	
+	public boolean isLooped() {
+		return ChromaKeyController.isLooped();
+	}
+	
 	public long getDuration()
 	{
 		return ChromaKeyController.getDuration();
@@ -111,6 +131,11 @@ public class ChromaKeyVideoView extends SurfaceView {
 	public boolean isPlaying()
 	{
 		return ChromaKeyController.isPlaying();
+	}
+	
+	public void setPauseBetweenLoops(int seconds)
+	{
+		ChromaKeyController.setPauseBetweenLoops(seconds);
 	}
 	
 	public float getVideoAspectRatio()

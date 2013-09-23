@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <unistd.h>
 #include <wchar.h>
 
 #include "ChromaKeyRenderer.h"
@@ -64,6 +65,9 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controll
 	fileIsPrepared = false;
 	chromaKeyIsEnabled = false;
 	bIsPlaying = false;
+	looped = false;
+
+	pauseBeforeLoop = 0;
 
 	av_register_all();
 }
@@ -399,6 +403,21 @@ void ChromaKeyRenderer::disableChromaKey()
 	chromaKeyIsEnabled = false;
 }
 
+void ChromaKeyRenderer::setLooped(bool value)
+{
+	looped = value;
+}
+
+bool ChromaKeyRenderer::isLooped()
+{
+	return looped;
+}
+
+void ChromaKeyRenderer::setPauseBetweenLoops(int seconds)
+{
+	pauseBeforeLoop = seconds;
+}
+
 bool ChromaKeyRenderer::isPlaying()
 {
 	return bIsPlaying;
@@ -467,12 +486,14 @@ void ChromaKeyRenderer::decodeAndRender()
 	int frameFinished;
 	int lineCnt;
 
+	while(!stopRendering)
+	{
+
 	while(av_read_frame(pFormatContext, &packet) >= 0 && !stopRendering)
 	{
 		if(packet.stream_index == videoStreamIndex)
 		{
 			avcodec_decode_video2(pCodecContext, pDecodedFrame, &frameFinished, &packet);
-
 			if(frameFinished)
 			{
 				sws_scale
@@ -507,6 +528,17 @@ void ChromaKeyRenderer::decodeAndRender()
 		}
 
 		av_free_packet(&packet);
+	}
+
+
+	if(looped && !stopRendering)
+	{
+		/* rewind to start and play */
+		avformat_seek_file(pFormatContext, videoStreamIndex, 0, 0, 0, 0);
+		avcodec_flush_buffers(pCodecContext);
+		sleep(pauseBeforeLoop);
+	}
+
 	}
 
 	LOGD(LOG_TAG, "Total %d frames decoded and rendered", i);

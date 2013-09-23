@@ -137,3 +137,19 @@ JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_i
 	return renderer->isPlaying();
 }
 
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setLooped(JNIEnv* env, jobject obj, jboolean isLooped)
+{
+	renderer->setLooped(isLooped);
+	LOGD(LOG_TAG, "setLooped: set looped to %d", isLooped);
+}
+
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_isLooped(JNIEnv* env, jobject obj)
+{
+	return renderer->isLooped();
+}
+
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setPauseBetweenLoops(JNIEnv* env, jobject obj, jint seconds)
+{
+	renderer->setPauseBetweenLoops(seconds);
+}
+

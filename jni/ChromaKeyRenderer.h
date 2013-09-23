@@ -46,10 +46,13 @@ private:
 	int	keyColorRGB[3];
 	int keyChannel;
 
+	int pauseBeforeLoop;
+
 	bool fileIsPrepared;
 	bool chromaKeyIsEnabled;
 	bool bIsPlaying;
 	bool stopRendering;
+	bool looped;
 
 public:
 	ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controller);
@@ -66,6 +69,11 @@ public:
 
 	void enableChromaKey();
 	void disableChromaKey();
+
+	void setLooped(bool isLooped);
+	bool isLooped();
+
+	void setPauseBetweenLoops(int seconds);
 
 	bool isPlaying();
 

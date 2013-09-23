@@ -28,6 +28,10 @@ JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setCh
 JNIEXPORT jlong JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_getDuration(JNIEnv* env, jobject obj);
 JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_isPlaying(JNIEnv* env, jobject obj);
 
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setLooped(JNIEnv* env, jobject obj, jboolean isLooped);
+JNIEXPORT jboolean JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_isLooped(JNIEnv* env, jobject obj);
+JNIEXPORT void JNICALL Java_com_askoropadsky_ChromaKey_ChromaKeyController_setPauseBetweenLoops(JNIEnv* env, jobject obj, jint seconds);
+
 
 jobject createBitmap(JNIEnv *pEnv, int pWidth, int pHeight);
 

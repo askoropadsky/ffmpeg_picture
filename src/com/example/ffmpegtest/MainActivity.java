@@ -26,7 +26,8 @@ public class MainActivity extends Activity {
 		chromaKeyCheckBox = (CheckBox) findViewById(R.id.checkBox1);
 
 		File ext = getExternalFilesDir(null);
-		chromaKeySurface.setVideoPath(getExternalFilesDir(null) + "/adapter.mp4");
+		//chromaKeySurface.setVideoPath(getExternalFilesDir(null) + "/adapter.mp4");
+		chromaKeySurface.setVideoPath("/sdcard/adapter.mp4");
 	}
 
 	@Override
@@ -41,6 +42,8 @@ public class MainActivity extends Activity {
 		
 		try {
 			chromaKeySurface.prepare();
+			chromaKeySurface.setLooped(true);
+			chromaKeySurface.setPauseBetweenLoops(3);
 			
 			Log.w("qeqe", "Durations is " + chromaKeySurface.getDuration());
 			
