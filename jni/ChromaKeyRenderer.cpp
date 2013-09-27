@@ -59,7 +59,7 @@ ChromaKeyRenderer::ChromaKeyRenderer(JavaVM* pJvm, JNIEnv* env, jobject controll
 	keyColorRGB[0] = 128;
 	keyColorRGB[1] = 128;
 	keyColorRGB[2] = 128;
-	keyChannel = 2;
+	keyChannel = BLUE;
 
 	stopRendering = false;
 	fileIsPrepared = false;
@@ -364,10 +364,6 @@ void ChromaKeyRenderer::processBuffer(uint8_t* buffer, int width, int height)
 		green 	= buffer + i*4 + 1;
 		blue 	= buffer + i*4 + 2;
 		alpha	= buffer + i*4 + 3;
-
-//		if(*blue < 40 && *red < 40 && *green < 40) *alpha = 128;
-//		if(*blue < 20 && *red < 20 && *green < 20) *alpha = 64;
-//		if(*red < 5 && *green < 5 && *blue < 5 ) *alpha = 0;
 
 		bool shouldBeTransparent = false;
 

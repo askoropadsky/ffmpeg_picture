@@ -43,7 +43,8 @@ private:
 	int width;
 	int height;
 
-	int	keyColorRGB[3];
+	//int	keyColorRGB[3];
+	uint8_t	keyColorRGB[3];
 	int keyChannel;
 
 	int pauseBeforeLoop;
